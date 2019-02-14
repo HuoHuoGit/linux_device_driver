@@ -14,7 +14,7 @@
  *
  */
 
-#include <linux/config.h>
+//#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -29,10 +29,18 @@
 #include <linux/seq_file.h>
 #include <linux/cdev.h>
 
-#include <asm/system.h>		/* cli(), *_flags */
+#include <linux/version.h>
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 3, 0)
+        #include <asm/switch_to.h>
+#else
+        #include <asm/system.h> /* cli(), *_flags */
+#endif
+
 #include <asm/uaccess.h>	/* copy_*_user */
 
 #include "scull.h"		/* local definitions */
+
+#define init_MUTEX(sem) sema_init((sem), 1)
 
 /*
  * Our parameters which can be set at load time.
@@ -321,7 +329,7 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
 	if (count > quantum - q_pos)
 		count = quantum - q_pos;
 
-	if (copy_to_user(buf, dptr->data[s_pos] + q_pos, count)) {
+	if (raw_copy_to_user(buf, dptr->data[s_pos] + q_pos, count)) {
 		retval = -EFAULT;
 		goto out;
 	}
@@ -370,7 +378,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
 	if (count > quantum - q_pos)
 		count = quantum - q_pos;
 
-	if (copy_from_user(dptr->data[s_pos]+q_pos, buf, count)) {
+	if (raw_copy_from_user(dptr->data[s_pos]+q_pos, buf, count)) {
 		retval = -EFAULT;
 		goto out;
 	}
@@ -390,7 +398,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
  * The ioctl() implementation
  */
 
-int scull_ioctl(struct inode *inode, struct file *filp,
+long int scull_ioctl(struct file *filp,
                  unsigned int cmd, unsigned long arg)
 {
 
@@ -553,7 +561,7 @@ struct file_operations scull_fops = {
 	.llseek =   scull_llseek,
 	.read =     scull_read,
 	.write =    scull_write,
-	.ioctl =    scull_ioctl,
+	.unlocked_ioctl =    scull_ioctl,
 	.open =     scull_open,
 	.release =  scull_release,
 };
