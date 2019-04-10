@@ -59,54 +59,129 @@ enum jit_files {
  * This function prints one line of data, after sleeping one second.
  * It can sleep in different ways, according to the data pointer
  */
-int jit_fn(char *buf, char **start, off_t offset,
-	      int len, int *eof, void *data)
+//proc show
+static int jit_fn_busy_show(struct seq_file *m, void *v)
 {
-	unsigned long j0, j1; /* jiffies */
-	wait_queue_head_t wait;
+	unsigned long j0, j1;
 
-	init_waitqueue_head (&wait);
 	j0 = jiffies;
 	j1 = j0 + delay;
 
-	switch((long)data) {
-		case JIT_BUSY:
-			while (time_before(jiffies, j1))
-				cpu_relax();
-			break;
-		case JIT_SCHED:
-			while (time_before(jiffies, j1)) {
-				schedule();
-			}
-			break;
-		case JIT_QUEUE:
-			wait_event_interruptible_timeout(wait, 0, delay);
-			break;
-		case JIT_SCHEDTO:
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout (delay);
-			break;
-	}
-	j1 = jiffies; /* actual value after we delayed */
+	while(time_before(jiffies, j1))
+		cpu_relax();
 
-	len = sprintf(buf, "%9li %9li\n", j0, j1);
-	*start = buf;
-	return len;
+	j1 = jiffies;
+
+	seq_printf(m, "%9li %9li\n", j0, j1);
+	return 0;
 }
 
+static int jit_fn_busy_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jit_fn_busy_show, NULL);
+}
+
+struct file_operations jit_fn_busy_ops = {
+	.owner = THIS_MODULE,
+	.open = jit_fn_busy_open,
+	.read = seq_read,
+	.write = NULL,
+	.release = single_release,
+	.llseek = seq_lseek,
+};
+
+static int jit_fn_sched_show(struct seq_file *m, void *v)
+{
+	unsigned long j0, j1;
+
+	j0 = jiffies;
+	j1 = j0 + delay;
+
+	while(time_before(jiffies, j1))
+		schedule();
+
+	j1 = jiffies;
+
+	seq_printf(m, "%9li %9li\n", j0, j1);
+	return 0;
+}
+
+static int jit_fn_sched_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jit_fn_sched_show, NULL);
+}
+
+static struct file_operations jit_fn_sched_ops = {
+	.owner = THIS_MODULE,
+	.open = jit_fn_sched_open,
+	.read = seq_read,
+	.write = NULL,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int jit_fn_queue_show(struct seq_file *m, void *v)
+{
+	unsigned long j0, j1;
+	wait_queue_head_t wait;
+
+	init_waitqueue_head (&wait);
+
+	j0 = jiffies;
+
+    wait_event_interruptible_timeout(wait, 0, delay);
+
+	j1 = jiffies;
+
+	seq_printf(m, "%9li %9li\n", j0, j1);
+	return 0;
+}
+
+static int jit_fn_queue_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jit_fn_queue_show, NULL);
+}
+
+static struct file_operations jit_fn_queue_ops = {
+	.owner = THIS_MODULE,
+	.open = jit_fn_queue_open,
+	.read = seq_read,
+	.write = NULL,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int jit_fn_schedto_show(struct seq_file *m, void *v)
+{
+	unsigned long j0, j1;
+
+	j0 = jiffies;
+
+    set_current_state(TASK_INTERRUPTIBLE);
+    schedule_timeout (delay);
+
+	j1 = jiffies;
+
+	seq_printf(m, "%9li %9li\n", j0, j1);
+	return 0;
+}
+
+static int jit_fn_schedto_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jit_fn_schedto_show, NULL);
+}
+
+static struct file_operations jit_fn_schedto_ops = {
+	.owner = THIS_MODULE,
+	.open = jit_fn_schedto_open,
+	.read = seq_read,
+	.write = NULL,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 /*
  * This file, on the other hand, returns the current time forever
  */
-
-/*int jit_currentime(char *buf, char **start, off_t offset,
-                   int len, int *eof, void *data)*/
-//int jit_currentime(char *page, char **start, off_t off, int count, int *eof, void *data)
-/*
-ssize_t  file_read(char *page, char **start, off_t off, int count, int *eof, void *data)
-*/
-/*int jit_currentime(struct file *filp, char __user *buf, size_t count,
-                loff_t *f_pos)
-*/
 //proc show function
 static int jit_currentime_show(struct seq_file *m, void *v)
 {
@@ -127,15 +202,16 @@ static int jit_currentime_show(struct seq_file *m, void *v)
 		       j1, j2,
 		       (int) tv1.tv_sec, (int) tv1.tv_usec,
 		       (int) tv2.tv_sec, (int) tv2.tv_nsec);
-	//raw_copy_to_user(buf, cptr, count);
-	return 0;
+
+	return 0;//must reutn 0
 }
+
 static int jit_currentime_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, jit_currentime_show, NULL);
 }
-#if 1
-struct file_operations jit_current_time_op = {
+
+struct file_operations jit_current_time_ops = {
 	.owner = THIS_MODULE,
 	.open = jit_currentime_open,
 	.release = single_release,
@@ -143,7 +219,6 @@ struct file_operations jit_current_time_op = {
     .write = NULL,
     .llseek = seq_lseek,
 };
-#endif
 
 /*
  * The timer example follows
@@ -181,7 +256,7 @@ void jit_timer_fn(struct timer_list* timer)
 	}
 }
 
-/* the /proc function: allocate everything to allow concurrency */
+/* the /proc  show function: allocate everything to allow concurrency */
 int jit_timer(char *buf, char **start, off_t offset,
 	      int len, int *eof, void *unused_data)
 {
@@ -224,6 +299,56 @@ int jit_timer(char *buf, char **start, off_t offset,
 	*eof = 1;
 	return buf2 - buf;
 }
+
+static int jit_timer_show(struct seq_file *m, void *v)
+{
+
+	struct jit_data *data;
+	unsigned long j = jiffies;
+
+	data = kmalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	timer_setup(&data->timer, jit_timer_fn, 0);
+	init_waitqueue_head (&data->wait);
+
+	/* write the first lines in the buffer */
+	seq_printf(m, "   time   delta  inirq    pid   cpu command\n");
+    seq_printf(m, "%9li  %3li     %i    %6i   %i   %s\n",
+			j, 0L, in_interrupt() ? 1 : 0,
+			current->pid, smp_processor_id(), current->comm);
+
+	/* fill the data for our timer function */
+	data->prevjiffies = j;
+	data->loops = JIT_ASYNC_LOOPS;
+	
+	/* register the timer */
+	data->timer.expires = j + tdelay; /* parameter */
+	add_timer(&data->timer);
+
+	/* wait for the buffer to fill */
+	wait_event_interruptible(data->wait, !data->loops);
+	if (signal_pending(current))
+		return -ERESTARTSYS;
+	kfree(data);
+
+	return 0;
+}
+
+static int jit_timer_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, jit_timer_show, NULL);
+}
+
+struct file_operations jit_timer_ops = {
+    .owner   = THIS_MODULE,
+    .open    = jit_timer_open,
+    .release = seq_release,
+    .read    = seq_read,
+    .write   = NULL,
+    .llseek  = seq_lseek,
+};
 
 void jit_tasklet_fn(unsigned long arg)
 {
@@ -289,22 +414,119 @@ int jit_tasklet(char *buf, char **start, off_t offset,
 	return buf2 - buf;
 }
 
+static int jit_tasklet_show(struct seq_file *m, void *v)
+{
+	struct jit_data *data;
+	unsigned long j = jiffies;
 
+	data = kmalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
 
+	init_waitqueue_head (&data->wait);
+
+	/* write the first lines in the buffer */
+	seq_printf(m, "   time   delta  inirq    pid   cpu command\n");
+	seq_printf(m, "%9li  %3li     %i    %6i   %i   %s\n",
+			j, 0L, in_interrupt() ? 1 : 0,
+			current->pid, smp_processor_id(), current->comm);
+
+	/* fill the data for our tasklet function */
+	data->prevjiffies = j;
+	data->loops = JIT_ASYNC_LOOPS;
+	
+	/* register the tasklet */
+	tasklet_init(&data->tlet, jit_tasklet_fn, (unsigned long)data);
+
+	tasklet_schedule(&data->tlet);
+
+	/* wait for the buffer to fill */
+	wait_event_interruptible(data->wait, !data->loops);
+
+	if (signal_pending(current))
+		return -ERESTARTSYS;
+	kfree(data);
+
+	return 0;
+}
+
+static int jit_tasklet_open(struct inode *ionde, struct file *file)
+{
+    return single_open(file, jit_tasklet_show, NULL);
+}
+
+struct file_operations jit_tasklet_ops = {
+    .owner   = THIS_MODULE,
+    .open    = jit_tasklet_open,
+    .release = seq_release,
+    .read    = seq_read,
+    .write   = NULL,
+    .llseek  = seq_lseek,
+};
+
+static int jit_tasklet_hi_show(struct seq_file *m, void *v)
+{
+	struct jit_data *data;
+	unsigned long j = jiffies;
+
+	data = kmalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	init_waitqueue_head (&data->wait);
+
+	/* write the first lines in the buffer */
+	seq_printf(m, "   time   delta  inirq    pid   cpu command\n");
+	seq_printf(m, "%9li  %3li     %i    %6i   %i   %s\n",
+			j, 0L, in_interrupt() ? 1 : 0,
+			current->pid, smp_processor_id(), current->comm);
+
+	/* fill the data for our tasklet function */
+	data->prevjiffies = j;
+	data->loops = JIT_ASYNC_LOOPS;
+	
+	/* register the tasklet */
+	tasklet_init(&data->tlet, jit_tasklet_fn, (unsigned long)data);
+
+    tasklet_hi_schedule(&data->tlet);
+
+	/* wait for the buffer to fill */
+	wait_event_interruptible(data->wait, !data->loops);
+
+	if (signal_pending(current))
+		return -ERESTARTSYS;
+	kfree(data);
+
+	return 0;
+}
+
+static int jit_tasklet_hi_open(struct inode *ionde, struct file *file)
+{
+    return single_open(file, jit_tasklet_hi_show, NULL);
+}
+
+struct file_operations jit_tasklet_hi_ops = {
+    .owner   = THIS_MODULE,
+    .open    = jit_tasklet_hi_open,
+    .release = seq_release,
+    .read    = seq_read,
+    .write   = NULL,
+    .llseek  = seq_lseek,
+};
 int __init jit_init(void)
 {
-    proc_create("currentime", 0, NULL, &jit_current_time_op);
-/*
-    create_proc_read_entry("currentime", 0, NULL, jit_currentime, NULL);
-	create_proc_read_entry("jitbusy", 0, NULL, jit_fn, (void *)JIT_BUSY);
-	create_proc_read_entry("jitsched",0, NULL, jit_fn, (void *)JIT_SCHED);
-	create_proc_read_entry("jitqueue",0, NULL, jit_fn, (void *)JIT_QUEUE);
-	create_proc_read_entry("jitschedto", 0, NULL, jit_fn, (void *)JIT_SCHEDTO);
+    proc_create("currentime", 0, NULL, &jit_current_time_ops);
+	proc_create("jitbusy", 0, NULL, &jit_fn_busy_ops);
+	proc_create("jitsched", 0, NULL, &jit_fn_sched_ops);
+	proc_create("jitqueue", 0, NULL, &jit_fn_queue_ops);
+	proc_create("jitschedto", 0, NULL, &jit_fn_schedto_ops);
 
-	create_proc_read_entry("jitimer", 0, NULL, jit_timer, NULL);
-	create_proc_read_entry("jitasklet", 0, NULL, jit_tasklet, NULL);
-	create_proc_read_entry("jitasklethi", 0, NULL, jit_tasklet, (void *)1);
-*/
+    proc_create("jittimer", 0, NULL, &jit_timer_ops);
+    proc_create("jitasklet", 0, NULL, &jit_tasklet_ops);
+    proc_create("jitasklet_hi", 0, NULL, &jit_tasklet_hi_ops);
+	//create_proc_read_entry("jitasklet", 0, NULL, jit_tasklet, NULL);
+	//create_proc_read_entry("jitasklethi", 0, NULL, jit_tasklet, (void *)1);
+
 	return 0; /* success */
 }
 
